@@ -1,0 +1,42 @@
+; --------------------------------------------------------------------------------
+; @Title: TRACE32 Configuration file for AMP multicore debugging
+; @Description:
+;   Parametrized configuration file for TRACE32 to start multiple instances of
+;   TRACE32 for AMP debugging
+; @Copyright: (C) 1989-2022 Lauterbach GmbH, licensed for use with TRACE32(R) only
+; --------------------------------------------------------------------------------
+; $Id: config_amp.t32 10545 2017-03-09 10:34:46Z amerkle $
+
+
+; Parameters:
+;   t32marm -c config_multicore.t32 <intercom_port> <title> <tmp-dir> <sys-dir> <help-dir> <interface-to-debug-module> [interface options]
+; Examples Windows:
+;   t32marm -c config_multicore.t32 10000 Session0 C:\temp C:\t32 C:\t32\pdf USB CORE=1 -s amp.cmm
+;   t32marm -c config_multicore.t32 10000 Session0 C:\temp C:\t32 C:\t32\pdf NET NODE=e16130000001 PACKLEN=1024 CORE=1 -s amp.cmm
+; Examples Linux:
+;   t32marm -c config_multicore.t32 10000 Session0 /tmp ~/T32/t32dvd201602 ~/T32/t32dvd201602/pdf USB CORE=1 -s amp.cmm
+;   t32marm -c config_multicore.t32 10000 Session0 /tmp ~/T32/t32dvd201602 ~/T32/t32dvd201602/pdf NET NODE=e16130000001 PACKLEN=1024 CORE=1 -s amp.cmm
+
+IC=NETASSIST
+PORT=${1}
+
+; Environment variables
+OS=
+ID=T32${1}
+TMP=${3}
+SYS=${4}
+HELP=${4}/pdf
+
+PBI=
+${5}
+${6}
+${7}
+${8}
+
+; Printer settings
+; PRINTER=WINDOWS
+
+; Screen fonts
+SCREEN=
+FONT=SMALL
+HEADER=TRACE32 ${2}
