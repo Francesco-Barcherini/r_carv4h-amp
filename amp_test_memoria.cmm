@@ -1,0 +1,189 @@
+; --------------------------------------------------------------------------------
+; @Title: AMP-Demo script for R8A779G on WhiteHawk (AMP, RAM) - Test memoria
+; @Description:
+;   Setup a AMP debug session using a single script approach.
+;   Loads the sieve demo application into RAM and sets up a demo debug
+;   scenario.
+;   Use this script to test the AMP-Debugging.
+;   Prerequisites:
+;    * Connect Debug Cable/Combiprobe to CN1 (Main JTAG)
+;    * Set boot core to Cortex-R52 and main JTAG to CoreSight. This can either be
+;      done via a switch board or by programming the CPLD.
+;
+;   Switch MD (Switch SW1 Pin[1:8]) settings. Mode switch board is connected to CN9 on the WhiteHawk-CPU board:
+;    * Cortex-R52 boot
+;        MD6 = 1 (SW1[1] = OFF)
+;        MD7 = 1 (SW1[2] = OFF)
+;    * SCIF download mode (not boot code is executed)
+;        MD8 = 1 (SW1[4] = OFF)
+;        MD4 = 1 (SW1[5] = OFF)
+;        MD3 = 1 (SW1[6] = OFF)
+;        MD2 = 1 (SW1[7] = OFF)
+;        MD1 = 1 (SW1[8] = OFF)
+;    * Normal boot:
+;        MD5  = 0 (SW2[1] = ON)
+;        MD35 = 0 (SW2[2] = ON)
+;    * Main JTAG = CoreSight, Sub JTAG = Normal Function
+;        MDT0 = 0 (SW2[3] = ON)
+;        MD21 = 1 (SW2[4] = OFF)
+;        MD20 = 0 (SW2[5] = ON)
+;        MD11 = 0 (SW2[6] = ON)
+;        MD10 = 0 (SW2[7] = ON)
+;
+; @Keywords: ARM, AMP, Cortex-A76, Cortex-R52, R-Car, V4H
+; @Author: BES
+; @Board: WhiteHawk
+; @Chip: R8A779G
+; @Copyright: (C) 1989-2022 Lauterbach GmbH, licensed for use with TRACE32(R) only
+; --------------------------------------------------------------------------------
+; $Id: r_carv4h_amp_sram.cmm 21070 2023-06-28 06:23:47Z bschroefel $
+
+; WinCLEAR
+
+; --------------------------------------------------------------------------------
+; Check prerequisites
+IF VERSION.BUILD.BASE()<129503.
+(
+  PRINT %ERROR "Please use more recent Software! Contact support@lauterbach.com."
+  ENDDO
+)
+
+IF SYStem.INSTANCE()<1.
+(
+  PRINT %ERROR "TRACE32 is not running in AMP mode! Use .bat/.sh file in this directory."
+  ENDDO
+)
+
+; store current script path in &ppd
+PRIVATE &ppd
+&ppd=OS.PPD()
+
+; --------------------------------------------------------------------------------
+; Close any existing REMOTE GUIs
+IC OTHERS QUIT
+
+; --------------------------------------------------------------------------------
+; Open all SLAVE GUIs
+IF !INTERCOM.PING(ARM64_1)
+  TargetSystem.NewInstance ARM64_1 /ARCHitecture ARM
+
+; --------------------------------------------------------------------------------
+; Set titles for SLAVE GUIs
+TITLE "TRACE32 for ARM - R8A779A0-CR52 - MASTER"
+InterCom ARM64_1 TITLE "TRACE32 for ARM64 - R8A779A0 - SLAVE"
+
+; --------------------------------------------------------------------------------
+; Common SYStem settings
+RESet
+InterCom ARM64_1 RESet
+SYStem.RESet
+InterCom ARM64_1 SYStem.RESet
+SYStem.CPU R8A779G-CR52
+SYStem.JtagClock 10MHz
+CORE.ASSIGN 1.
+SYStem.CONFIG CORE 1. 1.
+SYStem.CONFIG SLAVE OFF
+InterCom ARM64_1 SYStem.CPU R8A779G
+InterCom ARM64_1 SYStem.CONFIG CORE 2. 1.
+InterCom ARM64_1 SYStem.CONFIG SLAVE ON
+
+; Disable Trace for connection phase
+Trace.DISable
+InterCom ARM64_1 Trace.DISable
+
+SYStem.Up
+
+; --------------------------------------------------------------------------------
+; Kick secondary cores
+DO &(ppd)/../scripts/kick_cores.cmm "A76"
+DO &(ppd)/../scripts/kick_cores.cmm "R52"
+
+; --------------------------------------------------------------------------------
+; Attach to all cores on all sessions
+SYStem.Mode.Down
+CORE.ASSIGN 1. 2. 3.
+SYStem.Mode.Attach
+
+InterCom ARM64_1 CORE.ASSIGN 1. 2. 3. 4.
+InterCom ARM64_1 SYStem.Mode.Attach
+InterCom ARM64_1 Break
+
+GOSUB EnableATCM "0xE4000000"
+
+; --------------------------------------------------------------------------------
+; DRCR.RBE=0 (RPC Read cache = OFF) for flash region access
+Data.Set AD:0xEE20000C %LE %Long 0yXXXXxxxxXXXXxxxxXXXXxxx0XXXXxxxx
+
+; --------------------------------------------------------------------------------
+; Load demo program on all CR52 cores (use internal RAM only)
+Data.LOAD.Elf &(ppd)/master/sieve_ram_aarch32_arm_v8r_le.elf
+
+CORE 1
+GOSUB EnableATCM "0xE4400000"    // CR52_1 (Hypervisor MPU)
+Data.Assemble R:0xE4400000 NOP NOP NOP NOP B $-0x10
+Register.Init
+Register.Set PC 0xE4400000
+Register.Set M 0x1A              // Hypervisor mode
+Register.Set T 0
+
+CORE 2
+GOSUB EnableATCM "0xE4800000"    // CR52_2 (Hypervisor MPU)
+Data.Assemble R:0xE4800000 NOP NOP NOP NOP B $-0x10
+Register.Init
+Register.Set PC 0xE4800000
+Register.Set M 0x1A              // Hypervisor mode
+Register.Set T 0
+
+CORE 0
+
+; --------------------------------------------------------------------------------
+; Load demo program on all A76 cores (use internal RAM only)
+InterCom ARM64_1 CORE.select 0.
+InterCom ARM64_1 Data.LOAD.Elf &(ppd)/slave/sieve_ram_aarch64_v8.elf
+
+InterCom ARM64_1 Register.Init /CORE 1.
+InterCom ARM64_1 Register.Set PC _start_secondary /CORE 1.
+InterCom ARM64_1 Register.Init /CORE 2.
+InterCom ARM64_1 Register.Set PC _start_secondary /CORE 2.
+InterCom ARM64_1 Register.Init /CORE 3.
+InterCom ARM64_1 Register.Set PC _start_secondary /CORE 3.
+
+; --------------------------------------------------------------------------------
+; Start program execution
+Go.direct main\1
+WAIT !STATE.RUN()
+InterCom ARM64_1 Go.direct main\1
+InterCom ARM64_1 WAIT !STATE.RUN()
+
+; --------------------------------------------------------------------------------
+; Open some windows
+; WinCLEAR
+Mode.Hll
+WinPOS 0. 0. 116. 26.
+List.auto
+InterCom ARM64_1 WinCLEAR
+InterCom ARM64_1 Mode.Hll
+InterCom ARM64_1 WinPOS 0. 0. 116. 26.
+InterCom ARM64_1 List.auto
+
+ENDDO
+
+; ================================================================================
+
+EnableATCM:
+(
+  PRIVATE &addr
+  PARAMETERS &addr
+
+  ; Enable ACTM
+  Data.Set C15:0x19 %Long (&addr&0xFFFFF000)|0x1B
+  ; Enable MPU at EL2, region 0 only
+  Data.Set C15:0x4001 %Long 0yXXXXxxxxXXXXxxxxXXXXxxxxXXXXxxx1
+  Data.Set C15:0x4116 %Long 0x1
+  Data.Set C15:0x4086 %Long (&addr&0xFFFFF000)
+  Data.Set C15:0x4186 %Long (&addr&0xFFFFF000)+0x7FC1
+  
+  ; Init values for ATCM
+  Data.Set (&addr&0xFFFFF000)++0x7FFF %Quad 0x0
+)
+RETURN

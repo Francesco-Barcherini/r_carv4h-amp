@@ -11,8 +11,9 @@
 #include "reg.h"
 #include "serial.h"
 #include <inttypes.h>
+#include "scif.h"
 
-#define IS_HSCIF 	1
+#define IS_HSCIF 	0
 #define BAUDRATE 	921600
 #define CLK_RATE 	266660000
 #define SR 			(HSSRR_SRCYC_DEF_VAL + 1)
@@ -45,7 +46,8 @@ static void uart_rcar_set_baudrate(uint32_t baud_rate)
 		//reg_val = CLK_RATE / (2 * (HSSRR_SRCYC_DEF_VAL + 1) * baud_rate) - 1;
 		reg_val = (CLK_RATE / (2 * SR * BAUDRATE) - 1);
 	} else {
-		reg_val = ((CLK_RATE + 16 * baud_rate) / (32 * baud_rate) - 1);
+		//reg_val = ((CLK_RATE + 16 * baud_rate) / (32 * baud_rate) - 1);
+		reg_val = 0x11;
 	}
 	uart_rcar_write_8(SCBRR, reg_val);
 }
@@ -98,13 +100,17 @@ static void uart_rcar_poll_out( unsigned char out_char)
 
 int uart_rcar_configure()
 {
-	uint16_t reg_val;
+	uint16_t reg_val, pre, correct;
 	//k_spinlock_key_t key;
 
 	/* Disable Transmit and Receive */
-	reg_val = uart_rcar_read_16(SCSCR);
+	uint16_t base = UART_BASE_REG;
+	uint16_t addr = UART_BASE_REG + SCSCR;
+	reg_val = pre = uart_rcar_read_16(SCSCR);
 	reg_val &= ~(SCSCR_TE | SCSCR_RE);
+	correct = reg_val;
 	uart_rcar_write_16(SCSCR, reg_val);
+	reg_val = uart_rcar_read_16(SCSCR);
 
 	/* Emptying Transmit and Receive FIFO */
 	reg_val = uart_rcar_read_16(SCFCR);
@@ -215,11 +221,12 @@ void _itoa(char* buffer, int base, uint64_t value)
 
 int put(const char str)
 {
-  if(0xA == str){
-    uart_rcar_poll_out(0xD);
-  }
-  uart_rcar_poll_out(str);
-  return 0;
+	//   if(0xA == str){
+	//     uart_rcar_poll_out(0xD);
+	//   }
+	//   uart_rcar_poll_out(str);
+	//   return 0;
+	hscif_console_putc(str);
 }
 
 int puts_no_lock(const char *str)

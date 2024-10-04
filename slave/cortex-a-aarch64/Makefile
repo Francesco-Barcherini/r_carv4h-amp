@@ -4,7 +4,7 @@ FLASHSTART ?= 0x00000000
 RAMSTART   ?= 0x20000000
 WATCHDOG   ?= 0
 DEFINE     ?= 
-SRC        ?= serial.c cbfw_print.c
+SRC        ?= serial.c cbfw_printf.c scif_icumx.c
 LIB        ?= 
 HARDFP     ?= 0
 
@@ -39,7 +39,7 @@ CPU_AARCH64     := -mlittle-endian -mstrict-align
 AOPT_AARCH64    := $(CPU_AARCH64)  $(AOPT)
 COPT_AARCH64    := $(CPU_AARCH64)  $(COPT)
 CPPOPT_AARCH64  := $(CPU_AARCH64)  $(CPPOPT)
-LOPT_AARCH64    := $(CPU_AARCH64)  $(LOPT)  -Wl,--entry=_start 
+LOPT_AARCH64    := $(CPU_AARCH64)  $(LOPT)  -Wl,--entry=_start -DRCAR_V4H=100 -DRCAR_LSI=RCAR_V4H
 
 CC-AARCH64      := aarch64-none-elf-
 
@@ -52,7 +52,6 @@ TARGETS          = $(TARGET:%.c=%_ram_aarch64_v8.elf) \
 all: $(TARGETS)
 
 target-a% : $(filter %_aarch64_v8.elf, $(TARGETS))
-	@echo $(filter %_aarch64_v8.elf, $(TARGETS))
 
 $(TMP):
 	mkdir $(TMP)
@@ -94,7 +93,7 @@ $(TMP)/flash.ld:         $(MKFILEPATH)src/linker.ldx $(MAKEFILE_LIST) | $(TMP)
 
 clean:
 	-rm -fvr $(TMP)
-	-rm -fv ./*_ram_aarch64.elf
-	-rm -fv ./*_ram_aarch64.elf
+	-rm -fv ./*_ram_aarch64*.elf
+	-rm -fv ./*_ram_aarch64*.elf
 
 -include ./special-cortex-a-aarch64-rules.mk

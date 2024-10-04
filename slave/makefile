@@ -7,7 +7,7 @@ TARGET=sieve.c stm_stimulus.c
 RAMSIZE=0x8000
 DEFINE=ETRSIZE=0x1000
 
-include cortex-a-aarch64/Makefile
+include ./cortex-a-aarch64/Makefile
 
 target: target-a76
 	

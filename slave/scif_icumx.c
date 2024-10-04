@@ -45,12 +45,11 @@
  *****************************************************************************/
 
 #include <stdint.h>
-#include <types.h>
+//#include <types.h>
 #include <cpg.h>
 #include <pfc.h>
 #include <scif.h>
 #include <mem_io.h>
-#include <micro_wait.h>
 #include <rst_register.h>
 
 
@@ -129,411 +128,106 @@
 
 static void (*rcar_putc)(uint8_t outchar);
 
-static void scif_module_start(uint32_t modemr);
-static void scif_pfc_init(uint32_t modemr);
-static void scif_console_init(uint32_t modemr);
+static void scif_module_start();
+static void scif_pfc_init();
+static void scif_console_init();
 static void scif_console_putc(uint8_t outchar);
-static void hscif_console_putc(uint8_t outchar);
 
 
-static void scif_module_start(uint32_t modemr)
+static void scif_module_start()
 {
     uint32_t reg;
+    reg = mem_read32(CPG_MSTPSR5D0);
+    /* If supply of clock to SCIF0 is stopped */
+    if (0U != (CPG_MSTPCR_HSCIF & reg))
+    {
+        /* Supply of clock to SCIF0 is start */
+        reg &= ~(CPG_MSTPCR_HSCIF);
+        cpg_reg_write(CPG_MSTPCR5D0, CPG_MSTPSR5D0, reg);
+    }
 
-    if(modemr == MODEMR_SCIF_DLMODE)
-    {
-        reg = mem_read32(CPG_MSTPSR7D0);
-        /* If supply of clock to SCIF0 is stopped */
-        if (FALSE != (CPG_MSTPCR_SCIF & reg))
-        {
-            /* Supply of clock to SCIF0 is start */
-            reg &= ~(CPG_MSTPCR_SCIF);
-            cpg_reg_write(CPG_MSTPCR7D0, CPG_MSTPSR7D0, reg);
-        }
-    }
-    else
-    {
-        reg = mem_read32(CPG_MSTPSR5D0);
-        /* If supply of clock to SCIF0 is stopped */
-        if (FALSE != (CPG_MSTPCR_HSCIF & reg))
-        {
-            /* Supply of clock to SCIF0 is start */
-            reg &= ~(CPG_MSTPCR_HSCIF);
-            cpg_reg_write(CPG_MSTPCR5D0, CPG_MSTPSR5D0, reg);
-        }
-    }
 }
 /* End of function scif_module_start(void) */
 
-static void scif_pfc_init(uint32_t modemr)
+static void scif_pfc_init()
 {
     uint32_t reg;
+     /* Set HTX of HSCIF 0. */
+    reg = mem_read32(PFC_IP1SR1_RW);
+    reg &= (~(PFC_IPSR_SCIF_MASK1));
+    reg |= PFC_IPSR_HSCIF_VAL1;
+    pfc_reg_write(PFC_IP1SR1_RW, reg);
 
-#if (RCAR_LSI == RCAR_S4)
-    if(modemr == MODEMR_SCIF_DLMODE)
-    {
-        /* Set RX / TX of SCIF 0. */
-        reg = mem_read32(PFC_IP0SR0_RW);
-        reg &= (~(PFC_IPSR_SCIF_MASK));
-        reg |= PFC_IPSR_SCIF_VAL;
-        pfc_reg_write(PFC_IP0SR0_RW, reg);
+    /* Set HRX of HSCIF 0. */
+    reg = mem_read32(PFC_IP2SR1_RW);
+    reg &= (~(PFC_IPSR_SCIF_MASK2));
+    reg |= PFC_IPSR_HSCIF_VAL2;
+    pfc_reg_write(PFC_IP2SR1_RW, reg);
 
-        /* Set Voltage setting of 1.8V. */
-        reg = mem_read32(PFC_POC0_RW);
-        reg &= (~(PFC_POC_SCIF_MASK));
-        pfc_reg_write(PFC_POC0_RW, reg);
-    }
-    else if(modemr == MODEMR_HSCIF_DLMODE_921600)
-    {
-        /* Set HRX / HTX of HSCIF 0. */
-        reg = mem_read32(PFC_IP0SR0_RW);
-        reg &= (~(PFC_IPSR_SCIF_MASK));
-        reg |= PFC_IPSR_HSCIF_VAL;
-        pfc_reg_write(PFC_IP0SR0_RW, reg);
-
-        /* Set Voltage setting of 3.3V. */
-        reg = mem_read32(PFC_POC0_RW);
-        reg &= (~(PFC_POC_SCIF_MASK));
-        reg |= PFC_POC_SCIF_33V;
-        pfc_reg_write(PFC_POC0_RW, reg);
-    }
-    else if(modemr == MODEMR_HSCIF_DLMODE_1843200)
-    {
-        /* Set HRX / HTX of HSCIF 0. */
-        reg = mem_read32(PFC_IP0SR0_RW);
-        reg &= (~(PFC_IPSR_SCIF_MASK));
-        reg |= PFC_IPSR_HSCIF_VAL;
-        pfc_reg_write(PFC_IP0SR0_RW, reg);
-
-        /* Set Voltage setting of 1.8V. */
-        reg = mem_read32(PFC_POC0_RW);
-        reg &= (~(PFC_POC_SCIF_MASK));
-        pfc_reg_write(PFC_POC0_RW, reg);
-    }
-    else if(modemr == MODEMR_HSCIF_DLMODE_3000000)
-    {
-        /* Set HRX / HTX of HSCIF 0. */
-        reg = mem_read32(PFC_IP0SR0_RW);
-        reg &= (~(PFC_IPSR_SCIF_MASK));
-        reg |= PFC_IPSR_HSCIF_VAL;
-        pfc_reg_write(PFC_IP0SR0_RW, reg);
-
-        /* Set Voltage setting of 1.8V. */
-        reg = mem_read32(PFC_POC0_RW);
-        reg &= (~(PFC_POC_SCIF_MASK));
-        pfc_reg_write(PFC_POC0_RW, reg);
-
-        /* Set External Clock. */
-        reg = mem_read32(PFC_IP0SR0_RW);
-        reg &= (~(PFC_IPSR_SCIF_EXTCLK_MASK));
-        reg |= PFC_IPSR_SCIF_EXTCLK_VAL;
-        pfc_reg_write(PFC_IP0SR0_RW, reg);
-
-        reg = mem_read32(PFC_GPSR0_RW);
-        reg &= (~(PFC_GPSR_SCIF_EXTCLK_MASK));
-        reg |= PFC_GPSR_SCIF_EXTCLK_MASK;
-        pfc_reg_write(PFC_GPSR0_RW, reg);
-    }
-    else
-    {
-        /* no process */
-    }
-
-    reg = mem_read32(PFC_GPSR0_RW);
-    reg &= (~(PFC_GPSR_SCIF_MASK));
-    reg |= PFC_GPSR_SCIF_VAL;
-    pfc_reg_write(PFC_GPSR0_RW, reg);
-
-#elif ((RCAR_LSI == RCAR_V4H) || (RCAR_LSI == RCAR_V4M))
-    if(modemr == MODEMR_SCIF_DLMODE)
-    {
-        /* Set TX of SCIF 0. */
-        reg = mem_read32(PFC_IP1SR1_RW);
-        reg &= (~(PFC_IPSR_SCIF_MASK1));
-        reg |= PFC_IPSR_SCIF_VAL1;
-        pfc_reg_write(PFC_IP1SR1_RW, reg);
-
-        /* Set RX of SCIF 0. */
-        reg = mem_read32(PFC_IP2SR1_RW);
-        reg &= (~(PFC_IPSR_SCIF_MASK2));
-        reg |= PFC_IPSR_SCIF_VAL2;
-        pfc_reg_write(PFC_IP2SR1_RW, reg);
-
-        /* Set Voltage setting of 1.8V. */
-        reg = mem_read32(PFC_POC1_RW);
-        reg &= (~(PFC_POC_SCIF_MASK));
-        pfc_reg_write(PFC_POC1_RW, reg);
-    }
-    else if(modemr == MODEMR_HSCIF_DLMODE_921600)
-    {
-        /* Set HTX of HSCIF 0. */
-        reg = mem_read32(PFC_IP1SR1_RW);
-        reg &= (~(PFC_IPSR_SCIF_MASK1));
-        reg |= PFC_IPSR_HSCIF_VAL1;
-        pfc_reg_write(PFC_IP1SR1_RW, reg);
-
-        /* Set HRX of HSCIF 0. */
-        reg = mem_read32(PFC_IP2SR1_RW);
-        reg &= (~(PFC_IPSR_SCIF_MASK2));
-        reg |= PFC_IPSR_HSCIF_VAL2;
-        pfc_reg_write(PFC_IP2SR1_RW, reg);
-
-        /* Set Voltage setting of 3.3V. */
-        reg = mem_read32(PFC_POC1_RW);
-        reg &= (~(PFC_POC_SCIF_MASK));
-        reg |= PFC_POC_SCIF_33V;
-        pfc_reg_write(PFC_POC1_RW, reg);
-    }
-    else if(modemr == MODEMR_HSCIF_DLMODE_1843200)
-    {
-        /* Set HTX of HSCIF 0. */
-        reg = mem_read32(PFC_IP1SR1_RW);
-        reg &= (~(PFC_IPSR_SCIF_MASK1));
-        reg |= PFC_IPSR_HSCIF_VAL1;
-        pfc_reg_write(PFC_IP1SR1_RW, reg);
-
-        /* Set HRX of HSCIF 0. */
-        reg = mem_read32(PFC_IP2SR1_RW);
-        reg &= (~(PFC_IPSR_SCIF_MASK2));
-        reg |= PFC_IPSR_HSCIF_VAL2;
-        pfc_reg_write(PFC_IP2SR1_RW, reg);
-
-        /* Set Voltage setting of 1.8V. */
-        reg = mem_read32(PFC_POC1_RW);
-        reg &= (~(PFC_POC_SCIF_MASK));
-        pfc_reg_write(PFC_POC1_RW, reg);
-    }
-    else if(modemr == MODEMR_HSCIF_DLMODE_3000000)
-    {
-        /* Set HTX of HSCIF 0. */
-        reg = mem_read32(PFC_IP1SR1_RW);
-        reg &= (~(PFC_IPSR_SCIF_MASK1));
-        reg |= PFC_IPSR_HSCIF_VAL1;
-        pfc_reg_write(PFC_IP1SR1_RW, reg);
-
-        /* Set HRX of HSCIF 0. */
-        reg = mem_read32(PFC_IP2SR1_RW);
-        reg &= (~(PFC_IPSR_SCIF_MASK2));
-        reg |= PFC_IPSR_HSCIF_VAL2;
-        pfc_reg_write(PFC_IP2SR1_RW, reg);
-
-        /* Set Voltage setting of 1.8V. */
-        reg = mem_read32(PFC_POC1_RW);
-        reg &= (~(PFC_POC_SCIF_MASK));
-        pfc_reg_write(PFC_POC1_RW, reg);
-
-        /* Set External Clock. */
-        reg = mem_read32(PFC_IP2SR1_RW);
-        reg &= (~(PFC_IPSR_SCIF_EXTCLK_MASK));
-        reg |= PFC_IPSR_SCIF_EXTCLK_VAL;
-        pfc_reg_write(PFC_IP2SR1_RW, reg);
-
-        reg = mem_read32(PFC_GPSR1_RW);
-        reg &= (~(PFC_GPSR_SCIF_EXTCLK_MASK));
-        reg |= PFC_GPSR_SCIF_EXTCLK_MASK;
-        pfc_reg_write(PFC_GPSR1_RW, reg);
-    }
-    else
-    {
-        /* no process */
-    }
+    /* Set Voltage setting of 3.3V. */
+    reg = mem_read32(PFC_POC1_RW);
+    reg &= (~(PFC_POC_SCIF_MASK));
+    reg |= PFC_POC_SCIF_33V;
+    pfc_reg_write(PFC_POC1_RW, reg);
 
     reg = mem_read32(PFC_GPSR1_RW);
     reg &= (~(PFC_GPSR_SCIF_MASK));
     reg |= PFC_GPSR_SCIF_VAL;
     pfc_reg_write(PFC_GPSR1_RW, reg);
-#endif /* RCAR_LSI == RCAR_S4 */
 }
 /* End of function scif_pfc_init(void) */
 
-static void scif_console_init(uint32_t modemr)
+static void scif_console_init()
 {
     uint16_t reg;
-    switch(modemr)
+    /* clear SCR.TE & SCR.RE*/
+    mem_write16(HSCIF_HSSCR, SCIF_SCSCR_HW_INIT);
+    /* reset tx-fifo, reset rx-fifo. */
+    reg = mem_read16(HSCIF_HSFCR);
+    reg |= SCIF_SCFCR_RESET_FIFO;
+    mem_write16(HSCIF_HSFCR, reg);
+
+    /* clear ORER bit */
+    mem_write16(HSCIF_HSLSR, SCIF_SCLSR_INIT_DATA);
+    /* clear all error bit  */
+    mem_write16(HSCIF_HSFSR, SCIF_SCFSR_INIT_DATA);
+
+    /* internal clock, SC_CLK pin unused for output pin */
+    mem_write16(HSCIF_HSSCR, SCIF_SCSCR_HW_INIT);
+    /* 8bit data, no-parity, 1 stop, Po/1 */
+    reg = mem_read16(HSCIF_HSSMR);
+    reg &= SCIF_SCSMR_INIT_DATA;
+    mem_write16(HSCIF_HSSMR, reg);
+
+    /* Sampling rate 8  */
+    mem_write16(HSCIF_HSSRR, HSCIF_HSSRR_VAL);
+    /* Baud rate 921600bps*/
+    mem_write8(HSCIF_HSBRR, HSCIF_SCBRR_921600BPS);
+
+    for (int i = 0; i < 100000; i++)
     {
-        case MODEMR_HSCIF_DLMODE_3000000:
-        {
-            /* clear SCR.TE & SCR.RE*/
-            mem_write16(HSCIF_HSSCR, SCIF_SCSCR_HW_INIT);
-            /* reset tx-fifo, reset rx-fifo. */
-            reg = mem_read16(HSCIF_HSFCR);
-            reg |= SCIF_SCFCR_RESET_FIFO;
-            mem_write16(HSCIF_HSFCR, reg);
-
-            /* clear ORER bit */
-            mem_write16(HSCIF_HSLSR, SCIF_SCLSR_INIT_DATA);
-            /* clear all error bit  */
-            mem_write16(HSCIF_HSFSR, SCIF_SCFSR_INIT_DATA);
-
-            /* external clock, SC_CLK pin used for output pin */
-            mem_write16(HSCIF_HSSCR, SCIF_SCSCR_CKE_EXT_CLK);
-            /* 8bit data, no-parity, 1 stop, Po/1 */
-            reg = mem_read16(HSCIF_HSSMR);
-            reg &= SCIF_SCSMR_INIT_DATA;
-            mem_write16(HSCIF_HSSMR, reg);
-
-            /* 24MHz / (3000000 * 8) = 1 */
-            mem_write16(HSCIF_DL, HSCIF_DL_DIV1);
-            reg = mem_read16(HSCIF_CKS);
-            reg &= HSCIF_CKS_SC_CLK_EXT;
-            mem_write16(HSCIF_CKS, reg);
-            /* Sampling rate 8  */
-            reg = mem_read16(HSCIF_HSSRR);
-            reg &= ~(HSCIF_HSSRR_SRE | HSCIF_HSSRR_SRCYC);
-            reg |= HSCIF_HSSRR_VAL;
-            mem_write16(HSCIF_HSSRR, reg);
-
-            micro_wait(10U); /* 10us */
-
-            /* reset-off tx-fifo, rx-fifo. */
-            reg = mem_read16(HSCIF_HSFCR);
-            reg &= ~(SCIF_SCFCR_RESET_FIFO);
-            mem_write16(HSCIF_HSFCR, reg);
-            /* enable TE, RE; SC_CLK=external */
-            reg =  mem_read16(HSCIF_HSSCR);
-            reg |= SCIF_SCSCR_INIT_DATA;
-            mem_write16(HSCIF_HSSCR, reg);
-
-            /* Set the pointer to a function that outputs one character. */
-            rcar_putc = hscif_console_putc;
-            break;
-        }
-        case MODEMR_HSCIF_DLMODE_1843200:
-        {
-            /* clear SCR.TE & SCR.RE*/
-            mem_write16(HSCIF_HSSCR, SCIF_SCSCR_HW_INIT);
-            /* reset tx-fifo, reset rx-fifo. */
-            reg = mem_read16(HSCIF_HSFCR);
-            reg |= SCIF_SCFCR_RESET_FIFO;
-            mem_write16(HSCIF_HSFCR, reg);
-
-            /* clear ORER bit */
-            mem_write16(HSCIF_HSLSR, SCIF_SCLSR_INIT_DATA);
-            /* clear all error bit  */
-            mem_write16(HSCIF_HSFSR, SCIF_SCFSR_INIT_DATA);
-
-            /* internal clock, SC_CLK pin unused for output pin */
-            mem_write16(HSCIF_HSSCR, SCIF_SCSCR_HW_INIT);
-            /* 8bit data, no-parity, 1 stop, Po/1 */
-            reg = mem_read16(HSCIF_HSSMR);
-            reg &= SCIF_SCSMR_INIT_DATA;
-            mem_write16(HSCIF_HSSMR, reg);
-
-            /* Sampling rate 8  */
-            mem_write16(HSCIF_HSSRR, HSCIF_HSSRR_VAL);
-            /* Baud rate 1843200bps*/
-            mem_write8(HSCIF_HSBRR, HSCIF_SCBRR_1843200BPS);
-
-            micro_wait(10U); /* 10us */
-
-             /* reset-off tx-fifo, rx-fifo. */
-            reg = mem_read16(HSCIF_HSFCR);
-            reg &= ~(SCIF_SCFCR_RESET_FIFO);
-            mem_write16(HSCIF_HSFCR, reg);
-            /* enable TE, RE; SC_CLK=external */
-            reg =  mem_read16(HSCIF_HSSCR);
-            reg |= SCIF_SCSCR_INIT_DATA;
-            mem_write16(HSCIF_HSSCR, reg);
-
-            /* Set the pointer to a function that outputs one character. */
-            rcar_putc = hscif_console_putc;
-            break;
-        }
-        case MODEMR_HSCIF_DLMODE_921600:
-        {
-            /* clear SCR.TE & SCR.RE*/
-            mem_write16(HSCIF_HSSCR, SCIF_SCSCR_HW_INIT);
-            /* reset tx-fifo, reset rx-fifo. */
-            reg = mem_read16(HSCIF_HSFCR);
-            reg |= SCIF_SCFCR_RESET_FIFO;
-            mem_write16(HSCIF_HSFCR, reg);
-
-            /* clear ORER bit */
-            mem_write16(HSCIF_HSLSR, SCIF_SCLSR_INIT_DATA);
-            /* clear all error bit  */
-            mem_write16(HSCIF_HSFSR, SCIF_SCFSR_INIT_DATA);
-
-            /* internal clock, SC_CLK pin unused for output pin */
-            mem_write16(HSCIF_HSSCR, SCIF_SCSCR_HW_INIT);
-            /* 8bit data, no-parity, 1 stop, Po/1 */
-            reg = mem_read16(HSCIF_HSSMR);
-            reg &= SCIF_SCSMR_INIT_DATA;
-            mem_write16(HSCIF_HSSMR, reg);
-
-            /* Sampling rate 8  */
-            mem_write16(HSCIF_HSSRR, HSCIF_HSSRR_VAL);
-            /* Baud rate 921600bps*/
-            mem_write8(HSCIF_HSBRR, HSCIF_SCBRR_921600BPS);
-
-            micro_wait(10U); /* 10us */
-
-            /* reset-off tx-fifo, rx-fifo. */
-            reg = mem_read16(HSCIF_HSFCR);
-            reg &= ~(SCIF_SCFCR_RESET_FIFO);
-            mem_write16(HSCIF_HSFCR, reg);
-            /* enable TE, RE; SC_CLK=external */
-            reg =  mem_read16(HSCIF_HSSCR);
-            reg |= SCIF_SCSCR_INIT_DATA;
-            mem_write16(HSCIF_HSSCR, reg);
-
-            /* Set the pointer to a function that outputs one character. */
-            rcar_putc = hscif_console_putc;
-            break;
-        }
-        case MODEMR_SCIF_DLMODE:
-        default:
-        {
-            /* clear SCR.TE & SCR.RE*/
-            mem_write16(SCIF_SCSCR, SCIF_SCSCR_HW_INIT);
-            /* reset tx-fifo, reset rx-fifo. */
-            reg = mem_read16(SCIF_SCFCR);
-            reg |= SCIF_SCFCR_RESET_FIFO;
-            mem_write16(SCIF_SCFCR, reg);
-
-            /* clear ORER bit */
-            mem_write16(SCIF_SCLSR, SCIF_SCLSR_INIT_DATA);
-            /* clear all error bit  */
-            mem_write16(SCIF_SCFSR, SCIF_SCFSR_INIT_DATA);
-
-            /* internal clock, SC_CLK pin unused for output pin */
-            mem_write16(SCIF_SCSCR, SCIF_SCSCR_HW_INIT);
-            /* 8bit data, no-parity, 1 stop, Po/1 */
-            reg = mem_read16(SCIF_SCSMR);
-            reg &= SCIF_SCSMR_INIT_DATA;
-            mem_write16(SCIF_SCSMR, reg);
-
-            /* Baud rate 115200bps*/
-            mem_write8(SCIF_SCBRR, SCIF_SCBRR_115200BPS);
-
-            micro_wait(10U); /* 10us */
-
-            /* reset-off tx-fifo, rx-fifo. */
-            reg = mem_read16(SCIF_SCFCR);
-            reg &= ~(SCIF_SCFCR_RESET_FIFO);
-            mem_write16(SCIF_SCFCR, reg);
-            /* enable TE, RE; SC_CLK=no output */
-            reg =  mem_read16(SCIF_SCSCR);
-            reg |= SCIF_SCSCR_INIT_DATA;
-            mem_write16(SCIF_SCSCR, reg);
-
-            /* Set the pointer to a function that outputs one character. */
-            rcar_putc = scif_console_putc;
-            break;
-        }
+        ;
     }
+
+    /* reset-off tx-fifo, rx-fifo. */
+    reg = mem_read16(HSCIF_HSFCR);
+    reg &= ~(SCIF_SCFCR_RESET_FIFO);
+    mem_write16(HSCIF_HSFCR, reg);
+    /* enable TE, RE; SC_CLK=external */
+    reg =  mem_read16(HSCIF_HSSCR);
+    reg |= SCIF_SCSCR_INIT_DATA;
+    mem_write16(HSCIF_HSSCR, reg);
+
+    /* Set the pointer to a function that outputs one character. */
+    rcar_putc = hscif_console_putc;
 }
 /* End of function scif_console_init(void) */
 
 void scif_init(void)
 {
-    uint32_t modemr;
-
-    modemr = ((mem_read32(RST_MODEMR0) & RST_MODEMR0_MD31) >> 31U);
-    modemr |= ((mem_read32(RST_MODEMR1) & RST_MODEMR1_MD32) << 1U);
-
-    scif_module_start(modemr);
-    scif_pfc_init(modemr);
-    scif_console_init(modemr);
+    scif_module_start();
+    scif_pfc_init();
+    scif_console_init();
 }
 /* End of function scif_init(void) */
 
@@ -567,7 +261,7 @@ static void scif_console_putc(uint8_t outchar)
 }
 /* End of function scif_console_putc(uint8_t outchar) */
 
-static void hscif_console_putc(uint8_t outchar)
+void hscif_console_putc(uint8_t outchar)
 {
     uint16_t reg;
 
