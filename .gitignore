@@ -1,3 +1,4 @@
 *.elf
 tmp/
 *.bak
+.vscode
