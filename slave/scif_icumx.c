@@ -225,7 +225,7 @@ static void scif_console_init()
 
 void scif_init(void)
 {
-    scif_module_start();
+    //scif_module_start();
     scif_pfc_init();
     scif_console_init();
 }

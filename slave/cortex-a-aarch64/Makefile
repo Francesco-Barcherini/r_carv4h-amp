@@ -4,7 +4,7 @@ FLASHSTART ?= 0x00000000
 RAMSTART   ?= 0x20000000
 WATCHDOG   ?= 0
 DEFINE     ?= 
-SRC        ?= serial.c cbfw_printf.c scif_icumx.c
+SRC        ?= serial.c cbfw_printf.c scif_icumx.c gen_timer.c memory.c
 LIB        ?= 
 HARDFP     ?= 0
 

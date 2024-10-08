@@ -1,15 +1,15 @@
 #include <reg.h>
 #include <inttypes.h>
 #include <serial.h>
-#include <gic.h>
+//#include <gic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include <cbfw_printf.h>
-#include <psci.h>
-#include <gen_timer.h>
-#include <ttbl.h>
+//#include <psci.h>
+#include "gen_timer.h"
+//#include <ttbl.h>
 
 
 #define INTF_READ

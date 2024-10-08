@@ -4,7 +4,7 @@ RAMSTART=0xe6301000
 TARGET=sieve.c stm_stimulus.c
 # WATCHDOG=1
 # BOOTMPIDR=0x0000
-RAMSIZE=0x8000
+RAMSIZE=0x20000000
 DEFINE=ETRSIZE=0x1000
 
 include ./cortex-a-aarch64/Makefile
