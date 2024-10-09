@@ -6,8 +6,9 @@ TARGET=sieve.c stm_stimulus.c
 # BOOTMPIDR=0x0000
 RAMSIZE=0x8000
 DEFINE=ETRSIZE=0x1000
+SRC = serial.c cbfw_printf.c scif_icumx.c gen_timer.c memory.c
 
-include ${T32SYS}/demo/arm/compiler/gnu-make/cortex-r-aarch32/makefile
+include ./cortex-r-aarch32/makefile
 
 target: target-r52
 	

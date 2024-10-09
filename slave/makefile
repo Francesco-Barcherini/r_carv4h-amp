@@ -6,6 +6,7 @@ TARGET=sieve.c stm_stimulus.c
 # BOOTMPIDR=0x0000
 RAMSIZE=0x20000000
 DEFINE=ETRSIZE=0x1000
+SRC = serial.c cbfw_printf.c scif_icumx.c gen_timer.c memory.c
 
 include ./cortex-a-aarch64/Makefile
 
